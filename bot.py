@@ -1,85 +1,70 @@
-import nest_asyncio
-nest_asyncio.apply()
-
 import asyncio
-from playwright.async_api import async_playwright
-from selenium import webdriver
-from bs4 import BeautifulSoup
+from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
 
 async def fetch_tokens():
     async with async_playwright() as p:
-        # Browser starten
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
+        url = "https://pump.fun/advanced"
 
-        # Ziel-URL aufrufen
-        url = "https://pump.fun/advanced" 
-        await page.goto(url)
+        try:
+            await page.goto(url)
+            # Warte, bis die Token-Tabellen geladen sind
+            await page.wait_for_selector("tbody[data-testid='virtuoso-item-list'] a", timeout=10000)
 
-        # Auf dynamische Inhalte warten
-        await page.wait_for_selector("tbody[data-testid='virtuoso-item-list']")
+            token_links = []
+            elements = await page.query_selector_all("tbody[data-testid='virtuoso-item-list'] a")
 
-        # Links extrahieren
-        token_links = []
-        elements = await page.query_selector_all("tbody[data-testid='virtuoso-item-list'] a")
-        for element in elements:
-            href = await element.get_attribute("href")
-            if "/coin/" in href:
-                token_links.append(f"https://pump.fun{href}")
+            for element in elements:
+                href = await element.get_attribute("href")
+                if href and "/coin/" in href:
+                    token_links.append(f"https://pump.fun{href}")
 
-        # Browser schließen
+        except PlaywrightTimeoutError:
+            print("Fehler: Zeitüberschreitung beim Laden der Seite.")
+
         await browser.close()
+        return token_links
 
-        # Ergebnisse ausgeben
-        if token_links:
-            print(f"Gefundene Token-Links: {token_links}")
-            return token_links
-        else:
-            print("Keine Token-Links gefunden.")
-            return []
-
-# Endlosschleife bis eine Token-Website gefunden wird
-def fetch_token_website():
+async def fetch_token_website():
     while True:
-        # Token Links abrufen
-        loop = asyncio.get_event_loop()
-        token_links = loop.run_until_complete(fetch_tokens())
+        token_links = await fetch_tokens()
 
         if token_links:
-            # Ersten Link aus den gefundenen Tokens verwenden
             urltoken = token_links[0]
+            print(f"Neuester Token-Link: {urltoken}")
 
-            # Browser-Optionen konfigurieren
-            options = webdriver.ChromeOptions()
-            options.add_argument('--headless')  # Unsichtbarer Modus
-            options.add_argument('--no-sandbox')
-            options.add_argument('--disable-dev-shm-usage')
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                page = await browser.new_page()
 
-            # Browser starten
-            driver = webdriver.Chrome(options=options)
+                try:
+                    await page.goto(urltoken)
+                    # Warte auf vollständige Seitendarstellung
+                    await page.wait_for_load_state('domcontentloaded')
 
-            # Token-Seite laden
-            driver.get(urltoken)
+                    # Suche nach möglichen Website-Links in eingebetteten Daten oder im Seitentext
+                    website_url = await page.evaluate('''
+                        () => {
+                            let matches = document.body.innerText.match(/"website":"(https?:\/\/[^"]+)"/);
+                            return matches ? matches[1] : null;
+                        }
+                    ''')
 
-            # HTML-Inhalt der Seite abrufen
-            html = driver.page_source
+                    if website_url:
+                        print("Gefundene Token-Website:")
+                        print(website_url)
+                        break
+                    else:
+                        print("Keine Token-Website gefunden, versuche es erneut...")
+                
+                except PlaywrightTimeoutError:
+                    print("Fehler beim Laden der Token-Seite.")
+                
+                await browser.close()
+        else:
+            print("Keine Token-Links gefunden, versuche es erneut...")
+        await asyncio.sleep(10)  # Warte, bevor die nächste Abfrage gestartet wird
 
-            # HTML analysieren
-            soup = BeautifulSoup(html, "html.parser")
-
-            # Token-Links extrahieren
-            token_website = []
-            for link in soup.find_all("a", href=True):
-                if "website" in link.text.lower() or "agent" in link["href"]:
-                    token_website.append(link["href"])
-
-            # Wenn eine Website gefunden wurde, die Schleife beenden
-            if token_website:
-                print("Gefundene Token-Website:")
-                print(token_website)
-                break
-            else:
-                print("Keine Token-Website gefunden, versuche es erneut...")
-
-# Funktion aufrufen
-fetch_token_website()
+# Starten der asynchronen Funktion
+asyncio.run(fetch_token_website())
