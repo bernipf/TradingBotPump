@@ -1,9 +1,17 @@
 import asyncio
 from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
+import requests
 import re
 
-# Funktion zum Abrufen der ersten Token-URL
+# Punktwerte für die Keywords
+keyword_scores = {
+    "tokenomics": 1,
+    "roadmap": 2,
+    "ai": 1,
+}
+
+# Funktion zum Abrufen der Token-Links
 async def fetch_tokens():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -22,17 +30,15 @@ async def fetch_tokens():
         await browser.close()
         return token_links
 
-# Funktion zur Extraktion der Website und des Tickers
+# Funktion zur Suche der Token-Website und Ticker-Extraktion
 async def fetch_token_website_and_ticker():
     while True:  # Endlosschleife
         token_links = await fetch_tokens()
-        
         if not token_links:
             print("Keine Token-Links gefunden, versuche es erneut...")
-            await asyncio.sleep(5)  # Wartezeit vor erneutem Abrufen
+            await asyncio.sleep(5)
             continue
 
-        # Verwende den ersten gefundenen Token-Link
         urltoken = token_links[0]
         print(f"Verwende Token-URL: {urltoken}")
 
@@ -40,11 +46,8 @@ async def fetch_token_website_and_ticker():
             browser = await p.chromium.launch(headless=True)
             page = await browser.new_page()
             await page.goto(urltoken)
-            
-            # Wartezeit für das Laden der Inhalte
             await page.wait_for_timeout(2000)
-            
-            # Extrahiere Website-Links
+
             html_content = await page.content()
             soup = BeautifulSoup(html_content, "html.parser")
 
@@ -56,19 +59,47 @@ async def fetch_token_website_and_ticker():
 
             if token_website:
                 print("Gefundene Token-Website:", token_website)
-                
-                # Extrahiere den Ticker aus dem Seitentitel
+
+                # Ticker aus Seitentitel extrahieren
                 title = await page.title()
                 match = re.search(r"\((.*?)\)", title)
                 ticker = match.group(1) if match else "Kein Ticker gefunden"
                 print("Gefundener Ticker:", ticker)
+
+                # Führe Keyword-Analyse durch
+                score = keyword_analysis(token_website, ticker)
+                print(f"Gesamtpunktzahl für '{ticker}': {score}")
                 
                 await browser.close()
-                break  # Beende die Schleife, wenn ein Token mit Website gefunden wurde
+                break
             else:
                 print("Keine Token-Website gefunden, versuche es erneut...")
             
             await browser.close()
 
-# Starten der asynchronen Funktion
+        await asyncio.sleep(5)
+
+# Funktion zur Keyword-Analyse
+def keyword_analysis(url, token_name):
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        html_content = response.text.lower()
+
+        total_score = 0
+        for keyword, points in keyword_scores.items():
+            if keyword in html_content:
+                total_score += points
+                print(f"Gefunden: '{keyword}', Punkte: {points}")
+
+        if token_name.lower() not in html_content:
+            print(f"Warnung: Token-Name '{token_name}' nicht gefunden.")
+            total_score -= 3
+
+        return total_score
+    except requests.RequestException as e:
+        print(f"Fehler beim Abrufen der Website: {e}")
+        return -10
+
+# Starte das Programm
 asyncio.run(fetch_token_website_and_ticker())

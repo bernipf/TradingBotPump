@@ -1,56 +1,35 @@
-import asyncio
-from playwright.async_api import async_playwright
-from bs4 import BeautifulSoup
+import requests
 
-async def fetch_tokens():
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
-        url = "https://pump.fun/advanced"
-        await page.goto(url)
-        await page.wait_for_selector("tbody[data-testid='virtuoso-item-list']")
+# Punktwerte für die Keywords
+keyword_scores = {
+    "tokenomics": 1,
+    "roadmap": 2,
+}
 
-        token_links = []
-        elements = await page.query_selector_all("tbody[data-testid='virtuoso-item-list'] a")
-        for element in elements:
-            href = await element.get_attribute("href")
-            if "/coin/" in href:
-                token_links.append(f"https://pump.fun{href}")
+def keyword_analysis(url, token_name):
+    # HTTP-Request, um den statischen HTML-Code der Seite zu erhalten
+    response = requests.get(url)
+    html_content = response.text.lower()  # Der gesamte HTML-Quellcode wird als String verwendet
 
-        await browser.close()
+    # Punkteberechnung
+    total_score = 0
+    for keyword, points in keyword_scores.items():
+        # Suche nach dem Keyword im HTML-Quellcode
+        if keyword in html_content:
+            total_score += points
+            print(f"Gefunden: '{keyword}', Punkte: {points}")
 
-        return token_links
+    # Überprüfen, ob der Token-Name im HTML-Quelltext enthalten ist
+    if token_name.lower() not in html_content:
+        print(f"Warnung: Token-Name '{token_name}' nicht gefunden.")
+        total_score -= 3  # Beispielpunktabzug, wenn der Name fehlt
 
-async def fetch_token_website():
-    while True:
-        token_links = await fetch_tokens()
+    return total_score
 
-        if token_links:
-            urltoken = token_links[0]
-            async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
-                page = await browser.new_page()
-                await page.goto(urltoken)
+# Beispiel-URL und Token-Name für Testzwecke
+url = "https://beercoin.wtf"  # Ersetze durch die tatsächliche URL
+token_name = "beer"  # Ersetze durch den tatsächlichen Token-Namen
 
-                # HTML-Inhalt extrahieren
-                html = await page.content()
-                soup = BeautifulSoup(html, "html.parser")
-
-                token_website = []
-                for link in soup.find_all("a", href=True):
-                    if "website" in link.text.lower() or "agent" in link["href"]:
-                        token_website.append(link["href"])
-
-                if token_website:
-                    print("Gefundene Token-Website:")
-                    print(token_website)
-                    break
-                else:
-                    print("Keine Token-Website gefunden, versuche es erneut...")
-
-                await browser.close()
-        else:
-            print("Keine Token-Links gefunden, versuche es erneut...")
-
-# Starten der asynchronen Funktion
-asyncio.run(fetch_token_website())
+# Keyword-Analyse ausführen
+score = keyword_analysis(url, token_name)
+print(f"Gesamtpunktzahl: {score}")
