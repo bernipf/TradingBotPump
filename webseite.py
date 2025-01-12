@@ -44,8 +44,6 @@ async def fetch_token_website():
                 if token_website:
                     print("Gefundene Token-Website:")
                     print(token_website)
-                    print("Pump.fun:")
-                    print(token_links[0])
                     break
                 else:
                     print("Keine Token-Website gefunden, versuche es erneut...")
