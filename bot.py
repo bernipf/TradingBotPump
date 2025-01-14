@@ -8,10 +8,8 @@ import re
 keyword_scores = {
     "tokenomics": 1,
     "roadmap": 2,
-    "ai": 1,
 }
 
-# Funktion zum Abrufen der Token-Links
 async def fetch_tokens():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -30,76 +28,92 @@ async def fetch_tokens():
         await browser.close()
         return token_links
 
-# Funktion zur Suche der Token-Website und Ticker-Extraktion
-async def fetch_token_website_and_ticker():
-    while True:  # Endlosschleife
+async def fetch_token_website_and_socials():
+    while True:
         token_links = await fetch_tokens()
-        if not token_links:
-            print("Keine Token-Links gefunden, versuche es erneut...")
-            await asyncio.sleep(5)
-            continue
+        if token_links:
+            urltoken = token_links[0]
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                page = await browser.new_page()
+                await page.goto(urltoken)
+                await page.wait_for_timeout(5000)
 
-        urltoken = token_links[0]
-        print(f"Verwende Token-URL: {urltoken}")
+                html_content = await page.content()
+                soup = BeautifulSoup(html_content, "html.parser")
 
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page()
-            await page.goto(urltoken)
-            await page.wait_for_timeout(2000)
+                # Suche nach der Token-Website
+                token_website = None
+                for link in soup.find_all("a", href=True):
+                    if any(keyword in link.text.lower() for keyword in ["website", "official"]) or "agent" in link["href"]:
+                        token_website = link["href"]
+                        break
 
-            html_content = await page.content()
-            soup = BeautifulSoup(html_content, "html.parser")
+                # Suche nach der Twitter-URL
+                twitter_url = None
+                script_elements = await page.query_selector_all("script")
+                for element in script_elements:
+                    content = await element.inner_text()
+                    if "twitter" in content:
+                        twitter_match = re.search(r'https://x\.com/[^\"]+', content)
+                        if twitter_match:
+                            twitter_url = twitter_match.group(0)
+                            break
 
-            token_website = None
-            for link in soup.find_all("a", href=True):
-                if any(keyword in link.text.lower() for keyword in ["website", "official"]) or "agent" in link["href"]:
-                    token_website = link["href"]
-                    break
+                # Suche nach der Telegram-URL
+                telegram_url = None
+                for element in script_elements:
+                    content = await element.inner_text()
+                    if "telegram" in content:
+                        telegram_match = re.search(r'https://t\.me/[^\"]+', content)
+                        if telegram_match:
+                            telegram_url = telegram_match.group(0)
+                            break
 
-            if token_website:
-                print("Gefundene Token-Website:", token_website)
-
-                # Ticker aus Seitentitel extrahieren
-                title = await page.title()
-                match = re.search(r"\((.*?)\)", title)
-                ticker = match.group(1) if match else "Kein Ticker gefunden"
-                print("Gefundener Ticker:", ticker)
-
-                # Führe Keyword-Analyse durch
-                score = keyword_analysis(token_website, ticker)
-                print(f"Gesamtpunktzahl für '{ticker}': {score}")
-                
                 await browser.close()
-                break
-            else:
-                print("Keine Token-Website gefunden, versuche es erneut...")
-            
-            await browser.close()
 
-        await asyncio.sleep(5)
+                if token_website:
+                    print(f"Gefundene Token-Website: {token_website}")
+                    print(f"Pump-Link: {urltoken}")
 
-# Funktion zur Keyword-Analyse
+                    # Ticker extrahieren
+                    title = soup.title.string if soup.title else "Kein Titel gefunden"
+                    ticker_match = re.search(r"\((.*?)\)", title)
+                    ticker = ticker_match.group(1) if ticker_match else "Kein Ticker gefunden"
+                    print(f"Gefundener Ticker: {ticker}")
+
+                    # Keyword-Analyse auf der Token-Website
+                    score = keyword_analysis(token_website, ticker)
+                    print(f"Gesamtpunktzahl: {score}")
+
+                    if twitter_url:
+                        print(f"Gefundene Twitter-URL: {twitter_url}")
+                    if telegram_url:
+                        print(f"Gefundene Telegram-URL: {telegram_url}")
+
+                    break
+                else:
+                    print("Keine Token-Website gefunden, versuche es erneut...")
+
+        else:
+            print("Keine Token-Links gefunden, versuche es erneut...")
+        await asyncio.sleep(10)
+
 def keyword_analysis(url, token_name):
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        html_content = response.text.lower()
+    response = requests.get(url)
+    html_content = response.text.lower()
 
-        total_score = 0
-        for keyword, points in keyword_scores.items():
-            if keyword in html_content:
-                total_score += points
-                print(f"Gefunden: '{keyword}', Punkte: {points}")
+    total_score = 0
+    for keyword, points in keyword_scores.items():
+        if keyword in html_content:
+            total_score += points
+            print(f"Gefunden: '{keyword}', Punkte: {points}")
 
-        if token_name.lower() not in html_content:
-            print(f"Warnung: Token-Name '{token_name}' nicht gefunden.")
-            total_score -= 3
+    if token_name.lower() not in html_content:
+        print(f"Warnung: Token-Name '{token_name}' nicht gefunden.")
+        total_score -= 3
 
-        return total_score
-    except requests.RequestException as e:
-        print(f"Fehler beim Abrufen der Website: {e}")
-        return -10
+    return total_score
 
-# Starte das Programm
-asyncio.run(fetch_token_website_and_ticker())
+# Starte den Token-Scan
+asyncio.run(fetch_token_website_and_socials())
