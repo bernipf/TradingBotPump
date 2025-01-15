@@ -52,7 +52,6 @@ async def monitor_new_tokens():
 
                     # Gehe zur Token-Seite und extrahiere den Token-Namen
                     await page.goto(latest_link)
-                    await page.wait_for_timeout(5000)
                     token_name = await extract_token_name(page)
 
                     print(f"Gefundener Token-Name: {token_name}")
@@ -67,9 +66,6 @@ async def monitor_new_tokens():
 
                 else:
                     print("Kein neuer Link gefunden. Warte...")
-
-                # Wartezeit zwischen den Überprüfungen
-                await asyncio.sleep(10)
 
             except PlaywrightTimeoutError:
                 print("Timeout beim Laden der Seite. Versuche es erneut...")
