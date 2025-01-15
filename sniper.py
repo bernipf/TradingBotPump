@@ -118,7 +118,7 @@ async def monitor_new_tokens():
                         print(f"✖ Ziel-Ticker '{target_ticker}' stimmt nicht mit gefundenem Ticker '{ticker}' überein.")
 
                     # Menge der Tokens, die gekauft werden sollen
-                    amount_to_buy = 0.01  # Beispiel für eine Kaufmenge
+                    amount_to_buy = 2.5  # Beispiel für eine Kaufmenge
 
                     # Kaufe den Token über die API, wenn Name und Ticker übereinstimmen
                     if target_token_name.lower() in token_name.lower() and target_ticker.lower() in ticker.lower():
