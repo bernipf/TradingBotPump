@@ -11,7 +11,7 @@ import time
 
 # Punktwerte für die Keywords
 keyword_scores = {
-    "tokenomics": 1,
+    "tokenomics": 2,
     "roadmap": 2,
 }
 
@@ -20,6 +20,7 @@ thread_keyword_scores = {
     "go": 1,
     "moon": 1,
     "pump": 1,
+    "send it": 1,
 }
 
 # API-Daten für Telegram
@@ -46,7 +47,7 @@ def keyword_analysis(url, ticker):
 
     if ticker.lower() not in html_content:
         print(f"Warnung: Ticker '{ticker}' nicht gefunden.")
-        total_score -= 3
+        total_score -= 4
 
     return total_score
 
@@ -89,7 +90,7 @@ async def analyze_telegram_group_or_channel(entity, ticker):
             messages_last_hour = sum(1 for message in history.messages if message.date.timestamp() > (time.time() - 3600))
 
             if chat_type == "Kanal":
-                reactions = 11  # Beispielwert für Kanalreaktionen
+                reactions = 10  # Beispielwert für Kanalreaktionen
                 score = evaluate_channel(member_count, reactions, name_contains_ticker)
             else:
                 score = evaluate_group(member_count, messages_last_hour, name_contains_ticker)
@@ -222,6 +223,10 @@ async def fetch_token_website_and_socials():
                             market_cap_value = int(market_cap_text.replace(",", ""))
             
                             print(f"Gefundene Market Cap: {market_cap_value} USD")
+                            if 9000 <= market_cap_value <= 12000:
+                                print("Maketcap im gewünschten Bereich")
+                            else:
+                                print("Market Cap liegt außerhalb des gewünschten Bereichs.")
                         break
 
                     await browser.close()

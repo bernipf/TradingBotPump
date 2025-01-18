@@ -27,7 +27,7 @@ async def fetch_market_cap():
             print(f"Gefundene Market Cap: {market_cap_value} USD")
 
             if 9000 <= market_cap_value <= 12000:
-                print(1)
+                print("Maketcap im gewünschten Bereich")
             else:
                 print("Market Cap liegt außerhalb des gewünschten Bereichs.")
         else:
