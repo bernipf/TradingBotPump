@@ -8,6 +8,7 @@ from telethon.tl.functions.messages import GetHistoryRequest
 from telethon.tl.functions.channels import GetFullChannelRequest
 from telethon.errors import ChannelPrivateError
 import time
+import pandas as pd
 
 # Punktwerte für die Keywords
 keyword_scores = {
@@ -16,17 +17,21 @@ keyword_scores = {
 }
 
 thread_keyword_scores = {
-    "lfg": 1,
-    "go": 1,
-    "moon": 1,
-    "pump": 1,
-    "send it": 1,
+    "lfg": 0.5,
+    "lets go": 0.5,
+    "moon": 0.5,
+    "pump": 0.5,
+    "send it": 0.5,
 }
 
 # API-Daten für Telegram
 api_id = 26430719
 api_hash = "0daaec8b4c96cfc499ace42cbd9c7939"
 phone_number = "+4367761720922"
+
+# Gefundene Coins zählen
+found_coins_count = 0
+max_coins = 5
 
 # Telegram-Client initialisieren
 client = TelegramClient("session_name", api_id, api_hash)
@@ -39,17 +44,17 @@ def keyword_analysis(url, ticker):
         print(f"Fehler beim Abrufen der Website {url}: {e}")
         return 0
 
-    total_score = 0
+    score = 0
     for keyword, points in keyword_scores.items():
         if keyword in html_content:
-            total_score += points
+            score += points
             print(f"Gefunden: '{keyword}', Punkte: {points}")
 
     if ticker.lower() not in html_content:
         print(f"Warnung: Ticker '{ticker}' nicht gefunden.")
-        total_score -= 4
+        score -= 4
 
-    return total_score
+    return score
 
 async def get_member_count(client, entity):
     try:
@@ -165,8 +170,20 @@ async def analyze_threads(page):
     
     return total_score
 
+def save_to_excel(ticker, urltoken, total_score, market_cap_value, telegram_score, website_score, thread_score):
+    data = {"Ticker": [ticker], "Pump-Fun-Link": [urltoken], "Website Punkte": [website_score], "Telegram Punkte": [telegram_score], "Threads Punkte": [thread_score], "Punkte": [total_score], "Marketcap": [market_cap_value]}
+    df = pd.DataFrame(data)
+    try:
+        existing_df = pd.read_excel("coins.xlsx")
+        df = pd.concat([existing_df, df], ignore_index=True)
+    except FileNotFoundError:
+        pass
+    df.to_excel("coins.xlsx", index=False)
+    print(f"{ticker} wurde in die Excel-Tabelle eingetragen.")
+
 async def fetch_token_website_and_socials():
-    while True:
+    global found_coins_count
+    while found_coins_count < max_coins:
         token_links = await fetch_tokens()
         if token_links:
             urltoken = token_links[0]
@@ -213,9 +230,8 @@ async def fetch_token_website_and_socials():
 
                     print(f"Gesamtpunktzahl: {total_score}")
 
-                    if total_score > 2:
-                        print("Token erfüllt die Kriterien, Bot wird gestoppt.")
-                        print(urltoken)
+                    if total_score > 8:
+                        print("Token hat genügend punkte")
                         market_cap_match = re.search(r"market cap:\s*\$([\d,]+)", html_content, re.IGNORECASE)
         
                         if market_cap_match:
@@ -225,9 +241,12 @@ async def fetch_token_website_and_socials():
                             print(f"Gefundene Market Cap: {market_cap_value} USD")
                             if 9000 <= market_cap_value <= 12000:
                                 print("Maketcap im gewünschten Bereich")
+                                print("Token erfüllt die Kriterien, wird gespeichert.")
+                                save_to_excel(ticker, urltoken, total_score, market_cap_value, telegram_score, website_score, thread_score)
+                                found_coins_count += 1   
                             else:
                                 print("Market Cap liegt außerhalb des gewünschten Bereichs.")
-                        break
+                        
 
                     await browser.close()
 

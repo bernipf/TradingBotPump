@@ -192,7 +192,7 @@ async def fetch_token_website_and_socials():
                     browser = await p.chromium.launch(headless=True)
                     page = await browser.new_page()
                     await page.goto(urltoken)
-                    await page.wait_for_timeout(5000)
+                    await page.wait_for_timeout(100)
 
                     html_content = await page.content()
                     soup = BeautifulSoup(html_content, "html.parser")
@@ -257,6 +257,5 @@ async def fetch_token_website_and_socials():
 
         else:
             print("Keine Token-Links gefunden, versuche es erneut...")
-        await asyncio.sleep(10)
 
 asyncio.run(fetch_token_website_and_socials())
