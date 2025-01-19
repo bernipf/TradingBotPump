@@ -31,7 +31,7 @@ phone_number = "+4367761720922"
 
 # Gefundene Coins zählen
 found_coins_count = 0
-max_coins = 5
+max_coins = 10
 
 # Telegram-Client initialisieren
 client = TelegramClient("colab", api_id, api_hash)
@@ -230,7 +230,7 @@ async def fetch_token_website_and_socials():
 
                     print(f"Gesamtpunktzahl: {total_score}")
 
-                    if total_score > 8:
+                    if total_score > 4.5:
                         print("Token hat genügend punkte")
                         market_cap_match = re.search(r"market cap:\s*\$([\d,]+)", html_content, re.IGNORECASE)
         
