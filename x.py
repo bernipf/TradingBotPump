@@ -37,7 +37,7 @@ found_coins_count = 0
 max_coins = 10
 
 # Telegram-Client initialisieren
-client = TelegramClient("colab", api_id, api_hash)
+client = TelegramClient("session_name", api_id, api_hash)
 
 def keyword_analysis(url, ticker):
     try:
